@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
 import { User, Phone, Mail, LogOut, Edit2, Save } from 'lucide-react-native';
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const { profile, signOut, updateProfile } = useAuth();
   const [editing, setEditing] = useState(false);
   const [fullName, setFullName] = useState(profile?.full_name || '');
@@ -28,6 +30,7 @@ export default function ProfileScreen() {
 
   const handleSignOut = async () => {
     await signOut();
+    router.replace('/(auth)/welcome');
   };
 
   return (

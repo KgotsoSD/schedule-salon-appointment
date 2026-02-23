@@ -4,6 +4,14 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
+export const isSupabaseConfigured = () => {
+  const url = supabaseUrl.trim();
+  const key = supabaseAnonKey.trim();
+  if (!url || !key) return false;
+  if (url.includes('your-project-ref') || key.includes('your-anon-key')) return false;
+  return true;
+};
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export type Database = {

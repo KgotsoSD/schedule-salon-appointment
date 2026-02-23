@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 type Profile = {
   id: string;
@@ -16,6 +16,7 @@ type AuthContextType = {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  isDevAuth: boolean;
   signUp: (email: string, password: string, fullName: string, role: 'customer' | 'salon_owner') => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -24,13 +25,40 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const MOCK_USER_ID = 'dev-test-user-id';
+const MOCK_PROFILE: Profile = {
+  id: MOCK_USER_ID,
+  email: 'test@test.com',
+  full_name: 'Test User',
+  phone: '',
+  role: 'customer',
+  avatar_url: null,
+};
+
+function createMockSession(email: string): Session {
+  const user = {
+    id: MOCK_USER_ID,
+    email: email || 'test@test.com',
+    app_metadata: {},
+    user_metadata: {},
+    aud: 'authenticated',
+    created_at: new Date().toISOString(),
+  } as User;
+  return { user, access_token: '', refresh_token: '', expires_in: 0, expires_at: 0 } as Session;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const isDevAuth = !isSupabaseConfigured();
 
   useEffect(() => {
+    if (isDevAuth) {
+      setLoading(false);
+      return;
+    }
     supabase.auth.getSession().then(({ data: { session } }) => {
       (async () => {
         setSession(session);
@@ -55,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [isDevAuth]);
 
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
@@ -70,6 +98,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, fullName: string, role: 'customer' | 'salon_owner') => {
+    if (isDevAuth) {
+      const mockSession = createMockSession(email);
+      setSession(mockSession);
+      setUser(mockSession.user);
+      setProfile({ ...MOCK_PROFILE, email, full_name: fullName, role });
+      return { error: null };
+    }
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -91,6 +126,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
+    if (isDevAuth) {
+      const mockSession = createMockSession(email);
+      setSession(mockSession);
+      setUser(mockSession.user);
+      setProfile({ ...MOCK_PROFILE, email, full_name: email.split('@')[0] || 'Test User' });
+      return { error: null };
+    }
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -99,13 +141,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    if (isDevAuth) {
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      return;
+    }
     await supabase.auth.signOut();
     setProfile(null);
   };
 
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!user) return { error: new Error('No user') };
-
+    if (isDevAuth) {
+      if (profile) setProfile({ ...profile, ...updates });
+      return { error: null };
+    }
     const { error } = await supabase
       .from('profiles')
       .update(updates)
@@ -125,6 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         profile,
         loading,
+        isDevAuth,
         signUp,
         signIn,
         signOut,

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
-import { Search, MapPin, Clock, DollarSign, Scissors } from 'lucide-react-native';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { MOCK_SALON } from '@/lib/mockData';
+import { MapPin, Clock, Scissors } from 'lucide-react-native';
 
 type Salon = {
   id: string;
@@ -20,32 +21,35 @@ type Salon = {
 export default function HomeScreen() {
   const { profile } = useAuth();
   const router = useRouter();
-  const [salons, setSalons] = useState<Salon[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [salon, setSalon] = useState<Salon | null>(null);
   const [loading, setLoading] = useState(true);
 
   const isSalonOwner = profile?.role === 'salon_owner';
 
   useEffect(() => {
-    fetchSalons();
+    fetchSalon();
   }, []);
 
-  const fetchSalons = async () => {
+  const fetchSalon = async () => {
+    if (!isSupabaseConfigured()) {
+      setSalon(MOCK_SALON as Salon);
+      setLoading(false);
+      return;
+    }
     const { data, error } = await supabase
       .from('salons')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (data && !error) {
-      setSalons(data);
+      setSalon(data);
+    } else {
+      setSalon(MOCK_SALON as Salon);
     }
     setLoading(false);
   };
-
-  const filteredSalons = salons.filter(salon =>
-    salon.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    salon.address.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   if (isSalonOwner) {
     return (
@@ -84,72 +88,56 @@ export default function HomeScreen() {
         <Text style={styles.name}>{profile?.full_name || 'Beautiful'}</Text>
       </View>
 
-      <View style={styles.searchContainer}>
-        <Search size={20} color="#999999" strokeWidth={2} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search salons..."
-          placeholderTextColor="#999999"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
-
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.sectionTitle}>Find Your Perfect Salon</Text>
-
         {loading ? (
-          <Text style={styles.emptyText}>Loading salons...</Text>
-        ) : filteredSalons.length === 0 ? (
+          <Text style={styles.emptyText}>Loading...</Text>
+        ) : !salon ? (
           <View style={styles.emptyContainer}>
             <Scissors size={64} color="#FFD4E5" strokeWidth={1.5} />
-            <Text style={styles.emptyText}>No salons available yet</Text>
-            <Text style={styles.emptySubtext}>Check back soon for available salons</Text>
+            <Text style={styles.emptyText}>Salon coming soon</Text>
+            <Text style={styles.emptySubtext}>Check back later for booking</Text>
           </View>
         ) : (
-          filteredSalons.map((salon) => (
-            <Pressable
-              key={salon.id}
-              style={({ pressed }) => [
-                styles.salonCard,
-                pressed && styles.salonCardPressed,
-              ]}
-              onPress={() => router.push(`/salon/${salon.id}`)}
-            >
-              <View style={styles.salonImageContainer}>
-                {salon.image_url ? (
-                  <Image source={{ uri: salon.image_url }} style={styles.salonImage} />
-                ) : (
-                  <View style={[styles.salonImage, styles.salonImagePlaceholder]}>
-                    <Scissors size={40} color="#FF6B9D" strokeWidth={1.5} />
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.salonInfo}>
-                <Text style={styles.salonName}>{salon.name}</Text>
-                <Text style={styles.salonDescription} numberOfLines={2}>
-                  {salon.description || 'Professional hair salon services'}
-                </Text>
-
-                <View style={styles.salonMeta}>
-                  <View style={styles.metaItem}>
-                    <MapPin size={14} color="#666666" strokeWidth={2} />
-                    <Text style={styles.metaText} numberOfLines={1}>
-                      {salon.address || 'Location not set'}
-                    </Text>
-                  </View>
-
-                  <View style={styles.metaItem}>
-                    <Clock size={14} color="#666666" strokeWidth={2} />
-                    <Text style={styles.metaText}>
-                      {salon.opening_time.slice(0, 5)} - {salon.closing_time.slice(0, 5)}
-                    </Text>
-                  </View>
+          <View style={styles.salonCard}>
+            <View style={styles.salonImageContainer}>
+              {salon.image_url ? (
+                <Image source={{ uri: salon.image_url }} style={styles.salonImage} />
+              ) : (
+                <View style={[styles.salonImage, styles.salonImagePlaceholder]}>
+                  <Scissors size={48} color="#FF6B9D" strokeWidth={1.5} />
+                </View>
+              )}
+            </View>
+            <View style={styles.salonInfo}>
+              <Text style={styles.salonName}>{salon.name}</Text>
+              <Text style={styles.salonDescription} numberOfLines={3}>
+                {salon.description || 'Book your appointment with us.'}
+              </Text>
+              <View style={styles.salonMeta}>
+                <View style={styles.metaItem}>
+                  <MapPin size={14} color="#666666" strokeWidth={2} />
+                  <Text style={styles.metaText} numberOfLines={1}>
+                    {salon.address || 'Location not set'}
+                  </Text>
+                </View>
+                <View style={styles.metaItem}>
+                  <Clock size={14} color="#666666" strokeWidth={2} />
+                  <Text style={styles.metaText}>
+                    {salon.opening_time.slice(0, 5)} - {salon.closing_time.slice(0, 5)}
+                  </Text>
                 </View>
               </View>
+            </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.bookButton,
+                pressed && styles.bookButtonPressed,
+              ]}
+              onPress={() => router.push({ pathname: '/salon/[id]/book', params: { id: salon.id } })}
+            >
+              <Text style={styles.bookButtonText}>Book appointment</Text>
             </Pressable>
-          ))
+          </View>
         )}
       </ScrollView>
     </LinearGradient>
@@ -174,33 +162,9 @@ const styles = StyleSheet.create({
     color: '#2D2D2D',
     marginTop: 4,
   },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 24,
-    marginBottom: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#FFD4E5',
-    gap: 12,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#2D2D2D',
-  },
   content: {
     flex: 1,
     paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2D2D2D',
-    marginBottom: 16,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -228,10 +192,6 @@ const styles = StyleSheet.create({
     elevation: 4,
     overflow: 'hidden',
   },
-  salonCardPressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.98 }],
-  },
   salonImageContainer: {
     width: '100%',
     height: 180,
@@ -246,7 +206,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   salonInfo: {
-    padding: 16,
+    padding: 20,
   },
   salonName: {
     fontSize: 20,
@@ -272,6 +232,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#666666',
     flex: 1,
+  },
+  bookButton: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    backgroundColor: '#FF6B9D',
+    paddingVertical: 16,
+    borderRadius: 24,
+    alignItems: 'center',
+    shadowColor: '#FF6B9D',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  bookButtonPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
+  },
+  bookButtonText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '600',
   },
   card: {
     backgroundColor: '#FFFFFF',

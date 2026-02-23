@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { MockBookingsProvider } from '@/contexts/MockBookingsContext';
 
 function RootLayoutNav() {
   const { session, loading } = useAuth();
@@ -17,7 +18,7 @@ function RootLayoutNav() {
 
     if (!session && !inAuthGroup) {
       router.replace('/(auth)/welcome');
-    } else if (session && !inTabsGroup) {
+    } else if (session && inAuthGroup) {
       router.replace('/(tabs)');
     }
   }, [session, loading, segments]);
@@ -28,7 +29,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(auth)/signin" />
       <Stack.Screen name="(auth)/signup" />
       <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="salon/[id]" />
+      <Stack.Screen name="salon" />
       <Stack.Screen name="manage-salon" />
       <Stack.Screen name="+not-found" />
     </Stack>
@@ -40,8 +41,10 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <RootLayoutNav />
-      <StatusBar style="auto" />
+      <MockBookingsProvider>
+        <RootLayoutNav />
+        <StatusBar style="auto" />
+      </MockBookingsProvider>
     </AuthProvider>
   );
 }

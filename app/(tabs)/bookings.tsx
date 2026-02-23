@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { useMockBookings } from '@/contexts/MockBookingsContext';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { Calendar, Clock, MapPin, Scissors, CheckCircle, XCircle, AlertCircle } from 'lucide-react-native';
 
 type Booking = {
@@ -28,6 +29,7 @@ type Booking = {
 
 export default function BookingsScreen() {
   const { profile } = useAuth();
+  const { mockBookings } = useMockBookings();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -36,10 +38,20 @@ export default function BookingsScreen() {
 
   useEffect(() => {
     fetchBookings();
-  }, []);
+  }, [profile?.id, mockBookings]);
 
   const fetchBookings = async () => {
     if (!profile) return;
+
+    if (!isSupabaseConfigured()) {
+      const list = mockBookings
+        .filter((b) => b.customer_id === profile.id)
+        .map((b) => ({ ...b, customer: undefined }));
+      setBookings(list as Booking[]);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
 
     let query = supabase
       .from('bookings')
@@ -127,11 +139,15 @@ export default function BookingsScreen() {
         <Text style={styles.title}>
           {isSalonOwner ? 'Salon Bookings' : 'My Bookings'}
         </Text>
+        <Text style={styles.subtitle}>
+          {isSalonOwner ? 'Confirm or decline customer bookings' : 'Manage your appointments'}
+        </Text>
       </View>
 
       <ScrollView
         style={styles.content}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={true}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6B9D" />
         }
@@ -253,9 +269,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#2D2D2D',
   },
+  subtitle: {
+    fontSize: 14,
+    color: '#666666',
+    marginTop: 4,
+  },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     paddingHorizontal: 24,
+    paddingBottom: 32,
   },
   emptyContainer: {
     alignItems: 'center',
